@@ -1,0 +1,31 @@
+# api/submit_otp.py
+import os
+import json
+from http.server import BaseHTTPRequestHandler
+
+# این سبک ساده‌ای هست که Vercel docs باهاش مثال میزنه
+def handler(request):
+    # request.body contains bytes
+    body = request.body.decode()
+    data = json.loads(body or "{}")
+    request_id = data.get("request_id")
+    otp = data.get("otp")
+    if not request_id or not otp:
+        return {"status": 400, "body": {"error": "request_id and otp required"}}
+
+    # ذخیره در دیتابیس خارجی یا Redis
+    # مثال ساده: استفاده از POSTGRES (psycopg2)
+    import psycopg2
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    cur = conn.cursor()
+    cur.execute("""
+      INSERT INTO otps (request_id, otp, created_at)
+      VALUES (%s, %s, NOW())
+      ON CONFLICT (request_id) DO UPDATE SET otp = EXCLUDED.otp, created_at = NOW()
+    """, (request_id, otp))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"status": 200, "body": {"ok": True}}
