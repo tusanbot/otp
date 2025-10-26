@@ -1,11 +1,27 @@
-// در اینجا فرض کردیم پیامک‌ها در آرایه ذخیره شدن
-const allMessages = [
-  { id: 1, agentId: "a123", from: "0912...", body: "سلام", timestamp: "2025-10-20 14:00" },
-  { id: 2, agentId: "b222", from: "0935...", body: "ثبت نام انجام شد", timestamp: "2025-10-20 14:05" },
-  { id: 3, agentId: "a123", from: "0912...", body: "اطلاعات ارسال شد", timestamp: "2025-10-20 15:00" },
-];
+// utils/db.js
+// این پیاده‌سازی فقط نمونه و در حافظه است.
+// بهتر است بجای این از پایگاه داده (Postgres / Supabase / Neon / MongoDB) استفاده کنید.
 
-export async function getMessagesByAgent(agentId) {
-  // اینجا در عمل از دیتابیس واقعی مثل Mongo یا Supabase استفاده می‌کنی
-  return allMessages.filter(m => m.agentId === agentId);
+const messagesByAgent = {}; // { agentId: [ {from, body, timestamp, customerId} ] }
+const customers = {}; // نمونه: { customerId: { id, agentId, allowedSenders: ['1200','+9812...'], ... } }
+
+// helper: ثبت یک مشتری نمونه (در عمل این از دیتابیس در میاد)
+export async function upsertCustomer(customer) {
+  customers[customer.id] = customer;
+  return customers[customer.id];
+}
+
+export async function getCustomerById(id) {
+  return customers[id] || null;
+}
+
+export async function saveMessageForAgent(agentId, message) {
+  messagesByAgent[agentId] = messagesByAgent[agentId] || [];
+  messagesByAgent[agentId].unshift(message); // جدیدترین اول
+  // برای جلوگیری از رشد بی‌نهایت، می‌توانید سقف نگهداری تعیین کنید:
+  if (messagesByAgent[agentId].length > 500) messagesByAgent[agentId].pop();
+}
+
+export async function getMessagesForAgent(agentId) {
+  return messagesByAgent[agentId] || [];
 }
