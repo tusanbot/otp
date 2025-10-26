@@ -1,26 +1,26 @@
-import { Pool } from "pg";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+import { sql, ensurePartnerTable } from '../lib/db.js';
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  const { coworker_id, national_id, phone, name, loan_type } = req.body;
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
 
   try {
-    const client = await pool.connect();
-    await client.query(
-      "INSERT INTO loans (coworker_id, national_id, phone, name, loan_type) VALUES ($1, $2, $3, $4, $5)",
-      [coworker_id, national_id, phone, name, loan_type]
-    );
-    client.release();
+    const { partnerId, national_id, phone, name } = req.body;
+    if (!partnerId || !national_id || !phone)
+      return res.status(400).json({ error: 'Missing required fields' });
 
-    res.status(200).json({ message: "Loan added successfully" });
+    // اطمینان از وجود جدول مخصوص همکار
+    const tableName = await ensurePartnerTable(partnerId);
+
+    // درج اطلاعات مشتری در جدول اختصاصی
+    await sql(`
+      INSERT INTO ${tableName} (national_id, phone, name)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (national_id) DO NOTHING;
+    `, [national_id, phone, name]);
+
+    res.status(200).json({ success: true, table: tableName });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Database error" });
+    console.error('Error adding customer:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
